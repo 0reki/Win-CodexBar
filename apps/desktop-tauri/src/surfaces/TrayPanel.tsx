@@ -10,6 +10,7 @@ import {
   openSettingsWindow,
   quitApp as quitApplication,
   reorderProviders,
+  refreshProvidersIfStale,
   setFlyoutSize,
   setSurfaceMode,
   updateSettings,
@@ -98,7 +99,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     hasLoadedCache,
   } = useProviders({
     initialRefreshDelayMs: TRAY_INITIAL_REFRESH_DELAY_MS,
-    forceRefreshOnMount: true,
+    forceRefreshOnMount: settings.refreshAllProvidersOnMenuOpen,
   });
   const { updateState, checkNow, download, apply, dismiss, openRelease } =
     useUpdateState();
@@ -106,13 +107,18 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   useEffect(() => {
     let active = true;
     const unlisten = listen("flyout-opened", () => {
-      if (active) refresh();
+      if (!active) return;
+      if (settings.refreshAllProvidersOnMenuOpen) {
+        refresh();
+      } else {
+        void refreshProvidersIfStale();
+      }
     });
     return () => {
       active = false;
       unlisten.then((fn) => fn());
     };
-  }, [refresh]);
+  }, [refresh, settings.refreshAllProvidersOnMenuOpen]);
   const { t } = useLocale();
   const surfaceTarget = useSurfaceTarget("trayPanel");
 

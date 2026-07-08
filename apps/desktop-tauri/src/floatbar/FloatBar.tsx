@@ -12,7 +12,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useFormattedResetTime } from "../hooks/useFormattedResetTime";
 import { useProviders } from "../hooks/useProviders";
 import {
-  getProviderChartData,
+  getProviderLocalUsageSummary,
   getSettingsSnapshot,
   refreshProvidersIfStale,
 } from "../lib/tauri";
@@ -288,7 +288,6 @@ export default function FloatBar({ state }: { state: BootstrapState }) {
       key: providerCostKey(provider),
       providerId: provider.providerId,
       displayName: provider.displayName,
-      accountEmail: provider.accountEmail ?? undefined,
     }));
 
     if (targets.length === 0) {
@@ -300,14 +299,14 @@ export default function FloatBar({ state }: { state: BootstrapState }) {
 
     Promise.allSettled(
       targets.map(async (target) => {
-        const data = await getProviderChartData(target.providerId, target.accountEmail);
-        if (!hasLocalCost(data.localUsage)) return null;
+        const localUsage = await getProviderLocalUsageSummary(target.providerId);
+        if (!hasLocalCost(localUsage)) return null;
         return {
           key: target.key,
           providerId: target.providerId,
           displayName: target.displayName,
-          todayCost: data.localUsage.todayCost,
-          thirtyDayCost: data.localUsage.thirtyDayCost,
+          todayCost: localUsage.todayCost,
+          thirtyDayCost: localUsage.thirtyDayCost,
         } satisfies FloatBarCostSummary;
       }),
     )

@@ -233,13 +233,6 @@ pub fn apply_always_on_top(window: &tauri::WebviewWindow) {
     }
 }
 
-/// Return the current foreground window handle. Used to cheaply detect when
-/// another topmost owner, such as PowerToys, may have just reordered z-order.
-#[cfg(windows)]
-pub fn foreground_window() -> isize {
-    unsafe { GetForegroundWindow() }
-}
-
 /// Apply the current opacity setting to an existing floatbar window via
 /// `SetLayeredWindowAttributes`. No-op on non-Windows platforms.
 pub fn apply_opacity(window: &tauri::WebviewWindow, opacity: u8) {
@@ -344,7 +337,6 @@ unsafe extern "system" {
     fn GetWindowLongPtrW(hwnd: isize, index: i32) -> isize;
     fn SetWindowLongPtrW(hwnd: isize, index: i32, new: isize) -> isize;
     fn SetLayeredWindowAttributes(hwnd: isize, color_key: u32, alpha: u8, flags: u32) -> i32;
-    fn GetForegroundWindow() -> isize;
     fn SetWindowPos(
         hwnd: isize,
         hwnd_insert_after: isize,

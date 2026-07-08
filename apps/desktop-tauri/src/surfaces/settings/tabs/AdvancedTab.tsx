@@ -86,16 +86,15 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
       {/* -- Codex local logs -------------------------------------- */}
       <section className="settings-section">
         <h3 className="settings-section__title settings-section__title--bold">
-          CODEX LOCAL LOGS
+          {t("CodexLocalLogsTitle")}
         </h3>
         <p className="settings-section__caption">
-          Add Codex home or sessions directories for local cost estimates.
-          Separate multiple paths with semicolons.
+          {t("CodexLocalLogsCaption")}
         </p>
         <div className="settings-section__group">
           <Field
-            label="Codex log paths"
-            description="A .codex root is accepted; it will scan the sessions folder inside it."
+            label={t("CodexLogPathsLabel")}
+            description={t("CodexLogPathsHelper")}
           >
             <input
               type="text"

@@ -1,6 +1,5 @@
-use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::sync::Mutex;
+use std::time::Duration;
 
 use chrono::Utc;
 use serde::Serialize;
@@ -13,7 +12,6 @@ use crate::commands::{
 use crate::state::AppState;
 
 pub const STATUS_PIPE_NAME: &str = r"\\.\pipe\WinCodexBar.Status";
-const LOCAL_USAGE_TTL: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -39,8 +37,6 @@ pub struct PowerToysProviderSnapshot {
     latest_tokens: Option<u64>,
     thirty_day_tokens: Option<u64>,
     top_model: Option<String>,
-    plan_name: Option<String>,
-    account_email: Option<String>,
     updated_at: String,
     error: Option<String>,
 }
@@ -99,8 +95,6 @@ fn provider_snapshot(provider: ProviderUsageSnapshot) -> PowerToysProviderSnapsh
             .as_ref()
             .and_then(|summary| summary.thirty_day_tokens),
         top_model: local_usage.and_then(|summary| summary.top_model),
-        plan_name: provider.plan_name,
-        account_email: provider.account_email,
         updated_at: provider.updated_at,
         error: provider.error,
     }
@@ -128,36 +122,8 @@ fn provider_subtitle(
     }
 }
 
-struct CachedLocalUsage {
-    loaded_at: Instant,
-    summary: Option<ProviderLocalUsageSummary>,
-}
-
-fn local_usage_cache() -> &'static Mutex<HashMap<String, CachedLocalUsage>> {
-    static CACHE: OnceLock<Mutex<HashMap<String, CachedLocalUsage>>> = OnceLock::new();
-    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
-}
-
 fn cached_local_usage(provider_id: &str) -> Option<ProviderLocalUsageSummary> {
-    let cache = local_usage_cache();
-    if let Ok(guard) = cache.lock()
-        && let Some(entry) = guard.get(provider_id)
-        && entry.loaded_at.elapsed() <= LOCAL_USAGE_TTL
-    {
-        return entry.summary.clone();
-    }
-
-    let summary = load_provider_local_usage_summary(provider_id);
-    if let Ok(mut guard) = cache.lock() {
-        guard.insert(
-            provider_id.to_string(),
-            CachedLocalUsage {
-                loaded_at: Instant::now(),
-                summary: summary.clone(),
-            },
-        );
-    }
-    summary
+    load_provider_local_usage_summary(provider_id)
 }
 
 #[cfg(windows)]
@@ -191,5 +157,54 @@ async fn run_status_pipe(app: tauri::AppHandle) {
             let _ = server.write_all(b"\n").await;
             let _ = server.flush().await;
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rate_window(used_percent: f64) -> RateWindowSnapshot {
+        RateWindowSnapshot {
+            used_percent,
+            remaining_percent: 100.0 - used_percent,
+            window_minutes: None,
+            resets_at: None,
+            reset_description: None,
+            is_exhausted: false,
+            reserve_percent: None,
+            reserve_description: None,
+            reserve_eta_seconds: None,
+            reserve_will_last_to_reset: false,
+        }
+    }
+
+    #[test]
+    fn provider_snapshot_omits_account_identity_fields() {
+        let snapshot = provider_snapshot(ProviderUsageSnapshot {
+            provider_id: "test-provider".to_string(),
+            display_name: "Test Provider".to_string(),
+            primary: rate_window(42.0),
+            primary_label: Some("Session".to_string()),
+            secondary: None,
+            secondary_label: None,
+            model_specific: None,
+            tertiary: None,
+            extra_rate_windows: Vec::new(),
+            cost: None,
+            plan_name: Some("Team".to_string()),
+            account_email: Some("dev@example.com".to_string()),
+            source_label: "web".to_string(),
+            updated_at: "2026-07-09T00:00:00Z".to_string(),
+            error: None,
+            pace: None,
+            account_organization: Some("Example Org".to_string()),
+            tray_status_label: None,
+            fetch_duration_ms: None,
+        });
+        let value = serde_json::to_value(snapshot).unwrap();
+
+        assert!(value.get("planName").is_none());
+        assert!(value.get("accountEmail").is_none());
     }
 }
